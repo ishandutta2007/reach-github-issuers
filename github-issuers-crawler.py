@@ -101,10 +101,10 @@ def get_issue_title(root_url):
         print("Unknown Error: " + root_url)
         print(e)
 
-def get_issues(root_url):
+def get_issues(root_url, max_page=10):
     ret = []
     for status in ["open", "closed"]:
-        for page in range(1,10):
+        for page in range(1, max_page+1):
             try:
                 issues_url = root_url + '/issues?page=' + str(page) + '&q=is%3Aissue+is%3A' + status
                 req = Request(issues_url , headers={'User-Agent': 'Mozilla/5.0'})
@@ -126,38 +126,40 @@ def main():
     parser.add_argument('--repo', default="https://github.com/gatech-csl/jes")
     args = parser.parse_args()
     issues = get_issues(args.repo)
-    for issue in issues:
-        profile_urls = get_issuers_profile_urls("https://github.com" + issue)
-        issue_title = get_issue_title("https://github.com" + issue)
-        with open('email-list.csv','wb') as file:
-            with session() as s:
-                req = s.get(GITHUB_SESSION_URL).text
-                html = BeautifulSoup(req, 'html.parser')
-                token = html.find("input", {"name": "authenticity_token"}).attrs['value']
-                com_val = html.find("input", {"name": "commit"}).attrs['value']
 
-                login_data = {'login': USER,
-                            'password': PASSWORD,
-                            'commit' : com_val,
-                            'authenticity_token' : token}
+    with open('email-list.csv', 'w') as f:
+        f.write('Username, IssueUrl, IssueTitle, Fullname, EmailAddress, Organisation\n')
+        lines = []
+        for issue in issues:
+            profile_urls = get_issuers_profile_urls("https://github.com" + issue)
+            issue_title = get_issue_title("https://github.com" + issue)
+            with open('last-email-list.csv','wb') as file:
+                with session() as s:
+                    req = s.get(GITHUB_SESSION_URL).text
+                    html = BeautifulSoup(req, 'html.parser')
+                    token = html.find("input", {"name": "authenticity_token"}).attrs['value']
+                    com_val = html.find("input", {"name": "commit"}).attrs['value']
 
-                s.post(GITHUB_SESSION_URL, data = login_data)
+                    login_data = {'login': USER,
+                                'password': PASSWORD,
+                                'commit' : com_val,
+                                'authenticity_token' : token}
 
-                for profile_url in profile_urls:
-                    line = get_bio(s, profile_url, "https://github.com" + issue, issue_title)
-                    file.write(bytes(line, 'UTF-8'))
+                    s.post(GITHUB_SESSION_URL, data = login_data)
 
-        file = open('email-list.csv')
-        lines = file.readlines()
+                    for profile_url in profile_urls:
+                        line = get_bio(s, profile_url, "https://github.com" + issue, issue_title)
+                        file.write(bytes(line, 'UTF-8'))
+
+            file = open('last-email-list.csv')
+            lines.extend(list(set(file.readlines())))
+
         lines.sort()
         lines_deduped = list(set(lines))
+        for line in lines_deduped:
+            f.write("%s" % line)
 
-        with open('deduped-email-list.csv', 'w') as f:
-            f.write('Username, IssueUrl, IssueTitle, Fullname, EmailAddress, Organisation\n')
-            for line in lines_deduped:
-                f.write("%s" % line)
-        os.unlink('email-list.csv')
-        os.rename('deduped-email-list.csv','email-list.csv')
+    os.unlink('last-email-list.csv')
 
 if __name__ == '__main__':
   main()
