@@ -8,7 +8,7 @@ On how to setup gmail API follow [this](https://github.com/shankarj67/python-gma
 
 ### To run:
 
-1. `python3 github-issuers-crawler.py --issue ISSUE_FULL_URL`
+1. `python3 github-issuers-crawler.py --repo ISSUE_REPO_URL`
 
 2. The above script will create email-list.csv with all issue collaborators' details.
 
